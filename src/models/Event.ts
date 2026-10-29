@@ -1,6 +1,7 @@
 import { Schema, model, models, Document, Types } from "mongoose";
+import { EVENT_TYPES } from "@/lib/constants";
 
-export const EVENT_TYPES = ["Meeting", "Team Event", "Social", "Other"] as const;
+export { EVENT_TYPES } from "@/lib/constants";
 
 /**
  * Association events — meetings and team events (requirement 6).

@@ -1,21 +1,7 @@
 import { Schema, model, models, Document, Types } from "mongoose";
+import { MONTHS, DUES_TYPES } from "@/lib/constants";
 
-export const MONTHS = [
-  "january",
-  "february",
-  "march",
-  "april",
-  "may",
-  "june",
-  "july",
-  "august",
-  "september",
-  "october",
-  "november",
-  "december",
-] as const;
-
-export const DUES_TYPES = ["Monthly", "Yearly", "Donations"] as const;
+export { MONTHS, DUES_TYPES } from "@/lib/constants";
 
 export interface IDues extends Document {
   category?: string;
