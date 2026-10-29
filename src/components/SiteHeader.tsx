@@ -28,8 +28,14 @@ async function HeaderActions() {
           <Link href="/admin/members" className="hover:underline">
             Members
           </Link>
+          <Link href="/admin/events" className="hover:underline">
+            Manage events
+          </Link>
         </>
       )}
+      <Link href="/events" className="hover:underline">
+        Events
+      </Link>
       <Link href="/profile" className="hover:underline">
         Profile
       </Link>

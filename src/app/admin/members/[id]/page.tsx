@@ -7,6 +7,7 @@ import { User } from "@/models/User";
 import { Dues } from "@/models/Dues";
 import { Benefit } from "@/models/Benefit";
 import MemberManage from "@/components/MemberManage";
+import RemindButton from "@/components/RemindButton";
 import { sortDues } from "@/lib/dues-sort";
 
 export const metadata = { title: "Member — GERAF Admin" };
@@ -90,6 +91,7 @@ async function MemberDetail({ params }: { params: Promise<{ id: string }> }) {
                     <span className={row.paid ? "text-green-600" : "text-red-600"}>
                       {row.paid ? "Paid" : "Unpaid"}
                     </span>
+                    {!row.paid && <RemindButton duesId={row._id.toString()} />}
                   </span>
                 </li>
               );
