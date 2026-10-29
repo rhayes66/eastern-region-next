@@ -3,6 +3,7 @@ import { getSessionUser } from "@/lib/session";
 import { dbConnect } from "@/lib/db";
 import { Dues } from "@/models/Dues";
 import { Benefit } from "@/models/Benefit";
+import { sortDues } from "@/lib/dues-sort";
 
 export const metadata = { title: "My profile — GERAF" };
 
@@ -34,14 +35,13 @@ async function ProfileContent() {
   }
 
   await dbConnect();
-  const [dues, benefits] = await Promise.all([
-    Dues.find({ member: user.id }).sort({ year: -1, month: 1 }).lean() as Promise<
-      unknown
-    > as Promise<DuesRow[]>,
+  const [duesRaw, benefits] = await Promise.all([
+    Dues.find({ member: user.id }).lean() as Promise<unknown> as Promise<DuesRow[]>,
     Benefit.find({ member: user.id }).sort({ requestedDate: -1 }).lean() as Promise<
       unknown
     > as Promise<BenefitRow[]>,
   ]);
+  const dues = sortDues(duesRaw);
 
   const totalPaid = dues.filter((d) => d.paid).reduce((s, d) => s + d.amount, 0);
   const totalOutstanding = dues

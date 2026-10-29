@@ -7,6 +7,7 @@ import { User } from "@/models/User";
 import { Dues } from "@/models/Dues";
 import { Benefit } from "@/models/Benefit";
 import MemberManage from "@/components/MemberManage";
+import { sortDues } from "@/lib/dues-sort";
 
 export const metadata = { title: "Member — GERAF Admin" };
 
@@ -35,10 +36,13 @@ async function MemberDetail({ params }: { params: Promise<{ id: string }> }) {
     .lean()) as MemberDoc | null;
   if (!member) notFound();
 
-  const [dues, benefits] = await Promise.all([
-    Dues.find({ member: id }).sort({ year: -1, month: 1 }).lean(),
+  const [duesRaw, benefits] = await Promise.all([
+    Dues.find({ member: id }).lean(),
     Benefit.find({ member: id }).sort({ requestedDate: -1 }).lean(),
   ]);
+  const dues = sortDues(
+    duesRaw as unknown as { year: string; month: string }[]
+  ) as typeof duesRaw;
 
   const name = [member.firstname, member.lastname].filter(Boolean).join(" ") || "—";
 
