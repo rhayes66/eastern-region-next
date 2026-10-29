@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import Link from "next/link";
 import { connection } from "next/server";
 import { dbConnect } from "@/lib/db";
 import { User } from "@/models/User";
@@ -53,7 +54,14 @@ async function MembersTable() {
               [u.firstname, u.lastname].filter(Boolean).join(" ") || "—";
             return (
               <tr key={id}>
-                <td className="px-4 py-3 font-medium">{name}</td>
+                <td className="px-4 py-3 font-medium">
+                  <Link
+                    href={`/admin/members/${id}`}
+                    className="text-green-700 hover:underline dark:text-green-500"
+                  >
+                    {name}
+                  </Link>
+                </td>
                 <td className="px-4 py-3">{u.email ?? "—"}</td>
                 <td className="px-4 py-3">
                   <span
