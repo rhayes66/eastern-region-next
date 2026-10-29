@@ -55,7 +55,8 @@ export function escapeHtml(value: string): string {
 
 export function applicationStatusEmail(name: string, accepted: boolean): string {
   const safeName = escapeHtml(name);
+  const base = process.env.AUTH_URL ?? "http://localhost:3000";
   return accepted
-    ? `<div style="font-family:sans-serif"><h2>Welcome to GERAF, ${safeName}!</h2><p>Your membership application has been <b>accepted</b>. You can now log in and view your profile.</p></div>`
+    ? `<div style="font-family:sans-serif"><h2>Welcome to GERAF, ${safeName}!</h2><p>Your membership application has been <b>accepted</b>. You can now <a href="${base}/login">log in</a> with the email and password you chose, or sign in with Google.</p><p>Forgot your password? <a href="${base}/forgot-password">Reset it here</a>.</p></div>`
     : `<div style="font-family:sans-serif"><h2>GERAF application update</h2><p>Dear ${safeName}, after review your application was not accepted at this time. Please contact the association for details.</p></div>`;
 }

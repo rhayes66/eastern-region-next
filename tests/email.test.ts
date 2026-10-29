@@ -14,16 +14,18 @@ describe("escapeHtml", () => {
 
 describe("applicationStatusEmail escapes user-supplied name", () => {
   const payload = `<a href="https://evil.example">click</a>`;
+  const escaped = "&lt;a href=&quot;https://evil.example&quot;&gt;click&lt;/a&gt;";
 
-  it("does not emit the raw injected markup on accept", () => {
+  it("escapes the injected name on accept (keeps its own legit links)", () => {
     const html = applicationStatusEmail(payload, true);
-    expect(html).not.toContain("<a href=");
-    expect(html).toContain("&lt;a href=");
+    // the user-supplied payload must appear only in escaped form
+    expect(html).not.toContain(payload);
+    expect(html).toContain(escaped);
   });
 
-  it("does not emit the raw injected markup on reject", () => {
+  it("escapes the injected name on reject", () => {
     const html = applicationStatusEmail(payload, false);
-    expect(html).not.toContain("<a href=");
-    expect(html).toContain("&lt;a href=");
+    expect(html).not.toContain(payload);
+    expect(html).toContain(escaped);
   });
 });
