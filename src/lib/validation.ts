@@ -98,3 +98,8 @@ export const resetPasswordSchema = z
     message: "Passwords do not match",
     path: ["confirmPassword"],
   });
+
+// Admin sets a new password for a member (support / recovery, requirement 11).
+export const adminSetPasswordSchema = z.object({
+  password: passwordRule,
+});
