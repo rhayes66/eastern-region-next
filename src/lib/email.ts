@@ -40,8 +40,22 @@ export function passwordResetEmail(resetUrl: string): string {
     </div>`;
 }
 
+/**
+ * Escape HTML special characters so user-supplied values (e.g. an applicant's
+ * name from the public form) cannot inject markup/links into our emails.
+ */
+export function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 export function applicationStatusEmail(name: string, accepted: boolean): string {
+  const safeName = escapeHtml(name);
   return accepted
-    ? `<div style="font-family:sans-serif"><h2>Welcome to GERAF, ${name}!</h2><p>Your membership application has been <b>accepted</b>. You can now log in and view your profile.</p></div>`
-    : `<div style="font-family:sans-serif"><h2>GERAF application update</h2><p>Dear ${name}, after review your application was not accepted at this time. Please contact the association for details.</p></div>`;
+    ? `<div style="font-family:sans-serif"><h2>Welcome to GERAF, ${safeName}!</h2><p>Your membership application has been <b>accepted</b>. You can now log in and view your profile.</p></div>`
+    : `<div style="font-family:sans-serif"><h2>GERAF application update</h2><p>Dear ${safeName}, after review your application was not accepted at this time. Please contact the association for details.</p></div>`;
 }
