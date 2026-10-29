@@ -1,4 +1,4 @@
-import mongoose, { Schema, model, models, Document, Types } from "mongoose";
+import { Schema, model, models, Document, Types } from "mongoose";
 import bcrypt from "bcryptjs";
 
 export const ROLES = ["Member", "Admin", "Pending"] as const;
