@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { EVENT_TYPES } from "@/lib/constants";
+import { finlandLocalToUTCISO } from "@/lib/datetime";
 import { Field, SelectField } from "@/components/FormField";
 
 export default function EventForm() {
@@ -15,6 +16,8 @@ export default function EventForm() {
     setBusy(true);
     setMsg(null);
     const f = new FormData(e.currentTarget);
+    const startLocal = String(f.get("startDate") ?? "");
+    const endLocal = String(f.get("endDate") ?? "");
     try {
       const res = await fetch("/api/admin/events", {
         method: "POST",
@@ -24,8 +27,8 @@ export default function EventForm() {
           eventType: f.get("eventType"),
           description: f.get("description") || undefined,
           location: f.get("location") || undefined,
-          startDate: f.get("startDate"),
-          endDate: f.get("endDate") || undefined,
+          startDate: finlandLocalToUTCISO(startLocal),
+          endDate: endLocal ? finlandLocalToUTCISO(endLocal) : undefined,
         }),
       });
       if (res.ok) {

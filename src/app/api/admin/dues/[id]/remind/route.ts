@@ -3,7 +3,13 @@ import { dbConnect } from "@/lib/db";
 import { Dues } from "@/models/Dues";
 import { User } from "@/models/User";
 import { getSessionUser } from "@/lib/session";
-import { sendWhatsApp, debtMessage } from "@/lib/whatsapp";
+import {
+  sendWhatsAppTemplate,
+  sendWhatsApp,
+  debtTemplateId,
+  debtTemplateVariables,
+  debtMessage,
+} from "@/lib/whatsapp";
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
@@ -45,21 +51,34 @@ export async function POST(
     );
   }
 
-  const sent = await sendWhatsApp(
-    contact,
-    debtMessage(
-      member.firstname ?? "member",
-      dues.amount,
-      cap(dues.month),
-      dues.year
-    )
-  );
+  const name = member.firstname ?? "member";
+  const templateSid = debtTemplateId();
+
+  // Proactive reminder: use the approved template when configured (the
+  // WhatsApp-compliant path outside the 24h window). Fall back to free-form
+  // only when no template is set (dev/sandbox), so callers still degrade.
+  let sent = false;
+  if (templateSid) {
+    const r = await sendWhatsAppTemplate(
+      contact,
+      templateSid,
+      debtTemplateVariables(name, dues.amount, cap(dues.month), dues.year)
+    );
+    sent = r.sent;
+  } else {
+    sent = await sendWhatsApp(
+      contact,
+      debtMessage(name, dues.amount, cap(dues.month), dues.year)
+    );
+  }
 
   return NextResponse.json({
     ok: true,
     sent,
     message: sent
       ? "Reminder sent."
-      : "WhatsApp is not configured; reminder was not delivered (logged server-side).",
+      : templateSid
+        ? "WhatsApp is not configured; reminder was not delivered (logged server-side)."
+        : "No approved WhatsApp template configured; a proactive reminder was not sent (set TWILIO_DEBT_TEMPLATE_SID).",
   });
 }

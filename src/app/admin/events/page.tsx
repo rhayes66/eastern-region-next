@@ -16,9 +16,12 @@ type EventRow = {
 };
 
 const fmt = (d: Date) =>
-  new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(
-    new Date(d)
-  );
+  new Intl.DateTimeFormat("en-GB", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Europe/Helsinki",
+    timeZoneName: "short",
+  }).format(new Date(d));
 
 async function EventsAdminList() {
   await connection();

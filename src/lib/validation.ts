@@ -78,13 +78,20 @@ export const benefitSchema = z.object({
   description: z.string().optional(),
 });
 
+// A string that must parse to a real calendar date (rejects "", "not-a-date",
+// "2026-13-40", etc.) so routes never pass an invalid value to Mongoose.
+const dateString = z
+  .string()
+  .min(1)
+  .refine((s) => !Number.isNaN(Date.parse(s)), "Invalid date");
+
 export const eventSchema = z.object({
   title: z.string().min(1),
   eventType: z.enum(EVENT_TYPES),
   description: z.string().optional(),
   location: z.string().optional(),
-  startDate: z.string().min(1),
-  endDate: z.string().optional(),
+  startDate: dateString,
+  endDate: dateString.optional(),
 });
 
 export const forgotPasswordSchema = z.object({ email: z.string().email() });

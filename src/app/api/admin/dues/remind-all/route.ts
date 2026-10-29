@@ -3,7 +3,13 @@ import { dbConnect } from "@/lib/db";
 import { Dues } from "@/models/Dues";
 import { User } from "@/models/User";
 import { getSessionUser } from "@/lib/session";
-import { sendWhatsApp, debtMessage } from "@/lib/whatsapp";
+import {
+  sendWhatsAppTemplate,
+  sendWhatsApp,
+  debtTemplateId,
+  debtTemplateVariables,
+  debtMessage,
+} from "@/lib/whatsapp";
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
@@ -42,6 +48,7 @@ export async function POST() {
   let sent = 0;
   let skipped = 0;
   const skippedReasons: Record<string, number> = {};
+  const templateSid = debtTemplateId();
 
   for (const d of unpaid) {
     const member = byId.get(String(d.member));
@@ -51,15 +58,26 @@ export async function POST() {
       skippedReasons["no-contact"] = (skippedReasons["no-contact"] ?? 0) + 1;
       continue;
     }
-    const ok = await sendWhatsApp(
-      contact,
-      debtMessage(member?.firstname ?? "member", d.amount, cap(d.month), d.year)
-    );
+    const name = member?.firstname ?? "member";
+    let ok = false;
+    if (templateSid) {
+      const r = await sendWhatsAppTemplate(
+        contact,
+        templateSid,
+        debtTemplateVariables(name, d.amount, cap(d.month), d.year)
+      );
+      ok = r.sent;
+    } else {
+      ok = await sendWhatsApp(
+        contact,
+        debtMessage(name, d.amount, cap(d.month), d.year)
+      );
+    }
     if (ok) sent++;
     else {
       skipped++;
-      skippedReasons["not-delivered"] =
-        (skippedReasons["not-delivered"] ?? 0) + 1;
+      const reason = templateSid ? "not-delivered" : "no-template";
+      skippedReasons[reason] = (skippedReasons[reason] ?? 0) + 1;
     }
   }
 

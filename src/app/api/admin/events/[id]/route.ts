@@ -32,15 +32,18 @@ export async function PATCH(
   }
 
   await dbConnect();
-  const event = await Event.findByIdAndUpdate(
-    id,
-    {
+  // endDate omitted => CLEAR any existing end date ($unset), so a reschedule
+  // can't leave a stale end-before-start interval behind. endDate present =>
+  // set it (already validated against the new start above).
+  const update: Record<string, unknown> = {
+    $set: {
       ...rest,
       startDate: new Date(startDate),
-      endDate: endDate ? new Date(endDate) : undefined,
+      ...(endDate ? { endDate: new Date(endDate) } : {}),
     },
-    { new: true }
-  );
+    ...(endDate ? {} : { $unset: { endDate: "" } }),
+  };
+  const event = await Event.findByIdAndUpdate(id, update, { new: true });
   if (!event) {
     return NextResponse.json({ error: "Event not found" }, { status: 404 });
   }
