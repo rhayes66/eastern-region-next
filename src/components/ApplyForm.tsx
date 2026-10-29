@@ -144,12 +144,41 @@ export default function ApplyForm() {
         <Field
           label="Email"
           type="email"
+          required
           {...register("email")}
           error={errors.email?.message}
         />
       </div>
 
       <Field label="Occupation" {...register("occupation")} />
+
+      {/* Login credentials — used to sign in once an admin accepts the application */}
+      <fieldset className="rounded-lg border border-black/10 p-4 dark:border-white/15">
+        <legend className="px-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+          Choose your login password
+        </legend>
+        <p className="mb-3 px-0.5 text-xs text-zinc-500">
+          You will use your email and this password to sign in after your
+          application is accepted. Minimum 6 characters with an uppercase
+          letter, a number and a symbol.
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field
+            label="Password"
+            type="password"
+            required
+            {...register("password")}
+            error={errors.password?.message}
+          />
+          <Field
+            label="Confirm password"
+            type="password"
+            required
+            {...register("confirmPassword")}
+            error={errors.confirmPassword?.message}
+          />
+        </div>
+      </fieldset>
 
       <button
         type="submit"

@@ -51,6 +51,7 @@ const ApplicantDetailsSchema = new Schema<IApplicantDetails>(
 
 export interface IMemberApplication extends Document {
   yourDetails: IApplicantDetails;
+  passwordHash?: string; // bcrypt hash of the member's chosen password
   status: ApplicationStatus;
   applicationDate?: Date;
   acceptedDate?: Date;
@@ -65,6 +66,8 @@ export interface IMemberApplication extends Document {
 const MemberApplicationSchema = new Schema<IMemberApplication>(
   {
     yourDetails: { type: ApplicantDetailsSchema, required: true },
+    // Hashed at submission; copied to the User on accept. Never returned by default.
+    passwordHash: { type: String, select: false },
     status: {
       type: String,
       enum: APPLICATION_STATUSES,

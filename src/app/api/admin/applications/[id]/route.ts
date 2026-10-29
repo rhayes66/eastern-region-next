@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { randomBytes } from "crypto";
 import { dbConnect } from "@/lib/db";
 import { MemberApplication } from "@/models/MemberApplication";
 import { User } from "@/models/User";
@@ -31,7 +30,8 @@ export async function PATCH(
   }
 
   await dbConnect();
-  const application = await MemberApplication.findById(id);
+  // passwordHash is select:false — ask for it explicitly, we need it on accept.
+  const application = await MemberApplication.findById(id).select("+passwordHash");
   if (!application) {
     return NextResponse.json({ error: "Application not found" }, { status: 404 });
   }
@@ -62,17 +62,12 @@ export async function PATCH(
   }
 
   // ---- Accept: provision the member account ----
-  let member = details.email
-    ? await User.findOne({ email: details.email.toLowerCase() })
-    : null;
-
-  // Temporary password; the member resets it via the account-reset flow (req 11).
-  const tempPassword = randomBytes(12).toString("base64url") + "A1!";
+  const email = details.email?.toLowerCase();
+  let member = email ? await User.findOne({ email }) : null;
 
   if (!member) {
     member = await User.create({
-      email: details.email?.toLowerCase(),
-      password: details.email ? tempPassword : undefined,
+      email,
       title: details.title,
       firstname: details.firstname,
       lastname: details.lastname,
@@ -93,6 +88,16 @@ export async function PATCH(
   } else {
     member.role = "Member";
     await member.save();
+  }
+
+  // Set the password the member chose at application time. It is ALREADY a
+  // bcrypt hash, so write it with updateOne to bypass the pre-save hook (which
+  // would otherwise hash it a second time and break login).
+  if (application.passwordHash) {
+    await User.updateOne(
+      { _id: member._id },
+      { $set: { password: application.passwordHash } }
+    );
   }
 
   application.status = "Accepted";
