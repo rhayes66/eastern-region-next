@@ -32,25 +32,33 @@ export const registerSchema = z
     path: ["confirmPassword"],
   });
 
-// Member application (requirement 8 fields)
-export const applicationSchema = z.object({
-  title: z.enum(TITLES).optional(),
-  firstname: z.string().min(1, "Full name is required"),
-  lastname: z.string().min(1, "Last name is required"),
-  gender: z.enum(GENDERS),
-  fathersname: z.string().optional(),
-  mothersname: z.string().optional(),
-  spousename: z.string().optional(),
-  children: z.string().optional(),
-  address: z.string().min(1, "Location address is required"),
-  city: z.string().optional(),
-  postalCode: z.string().optional(),
-  ghanacity: z.string().min(1, "Home town in Ghana is required"),
-  finlandContact: z.string().min(1, "Finland contact number is required"),
-  email: z.string().email().optional(),
-  occupation: z.string().optional(),
-  dateOfBirth: z.string().optional(),
-});
+// Member application (requirement 8 fields + login credentials)
+export const applicationSchema = z
+  .object({
+    title: z.enum(TITLES).optional(),
+    firstname: z.string().min(1, "Full name is required"),
+    lastname: z.string().min(1, "Last name is required"),
+    gender: z.enum(GENDERS),
+    fathersname: z.string().optional(),
+    mothersname: z.string().optional(),
+    spousename: z.string().optional(),
+    children: z.string().optional(),
+    address: z.string().min(1, "Location address is required"),
+    city: z.string().optional(),
+    postalCode: z.string().optional(),
+    ghanacity: z.string().min(1, "Home town in Ghana is required"),
+    finlandContact: z.string().min(1, "Finland contact number is required"),
+    // Email is the login identity, so it is required on the application.
+    email: z.string().email("A valid email is required"),
+    password: passwordRule,
+    confirmPassword: z.string(),
+    occupation: z.string().optional(),
+    dateOfBirth: z.string().optional(),
+  })
+  .refine((d) => d.password === d.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  });
 export type ApplicationInput = z.infer<typeof applicationSchema>;
 
 export const duesSchema = z.object({
@@ -90,3 +98,8 @@ export const resetPasswordSchema = z
     message: "Passwords do not match",
     path: ["confirmPassword"],
   });
+
+// Admin sets a new password for a member (support / recovery, requirement 11).
+export const adminSetPasswordSchema = z.object({
+  password: passwordRule,
+});

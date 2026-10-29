@@ -1,25 +1,25 @@
-import { auth } from "@/auth";
-import { NextResponse } from "next/server";
+import NextAuth from "next-auth";
+import { authConfig } from "@/auth.config";
 
-export default auth((req) => {
+// Initialize NextAuth from the Edge-safe config only — no DB, no bcrypt, so the
+// middleware bundle stays within the Edge runtime. Route gating is handled by
+// the `authorized` callback in authConfig; unauthorized users are redirected to
+// the signIn page automatically.
+export const { auth: middleware } = NextAuth(authConfig);
+
+export default middleware((req) => {
+  // When `authorized` returns false for /admin to a non-admin, NextAuth would
+  // send them to the signIn page. Prefer sending a logged-in non-admin to their
+  // profile instead of the login screen.
   const { pathname } = req.nextUrl;
-  const user = req.auth?.user as { role?: string } | undefined;
-  const isLoggedIn = !!req.auth;
-
-  const isAdminArea = pathname.startsWith("/admin");
-  const isProfileArea = pathname.startsWith("/profile");
-
-  if ((isAdminArea || isProfileArea) && !isLoggedIn) {
-    const url = new URL("/login", req.nextUrl.origin);
-    url.searchParams.set("callbackUrl", pathname);
-    return NextResponse.redirect(url);
+  const role = (req.auth?.user as { role?: string } | undefined)?.role;
+  if (
+    pathname.startsWith("/admin") &&
+    req.auth?.user &&
+    role !== "Admin"
+  ) {
+    return Response.redirect(new URL("/profile", req.nextUrl.origin));
   }
-
-  if (isAdminArea && user?.role !== "Admin") {
-    return NextResponse.redirect(new URL("/profile", req.nextUrl.origin));
-  }
-
-  return NextResponse.next();
 });
 
 export const config = {

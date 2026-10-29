@@ -65,6 +65,9 @@ describe("applicationSchema (requirement 8 fields)", () => {
     address: "Helsinki 10",
     ghanacity: "Kumasi",
     finlandContact: "+358401234567",
+    email: "kwame@example.com",
+    password: "Str0ng!pw",
+    confirmPassword: "Str0ng!pw",
   };
   it("accepts a complete application", () => {
     expect(applicationSchema.safeParse(valid).success).toBe(true);
@@ -82,6 +85,26 @@ describe("applicationSchema (requirement 8 fields)", () => {
   it("rejects an invalid gender enum", () => {
     expect(
       applicationSchema.safeParse({ ...valid, gender: "Unknown" }).success
+    ).toBe(false);
+  });
+  it("requires an email (it is the login identity)", () => {
+    const { email, ...rest } = valid;
+    void email;
+    expect(applicationSchema.safeParse(rest).success).toBe(false);
+  });
+  it("requires a strong password", () => {
+    expect(
+      applicationSchema.safeParse({
+        ...valid,
+        password: "weak",
+        confirmPassword: "weak",
+      }).success
+    ).toBe(false);
+  });
+  it("rejects mismatched password confirmation", () => {
+    expect(
+      applicationSchema.safeParse({ ...valid, confirmPassword: "Other1!" })
+        .success
     ).toBe(false);
   });
 });

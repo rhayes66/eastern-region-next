@@ -21,9 +21,14 @@ async function HeaderActions() {
   return (
     <>
       {user.role === "Admin" && (
-        <Link href="/admin/applications" className="hover:underline">
-          Admin
-        </Link>
+        <>
+          <Link href="/admin/applications" className="hover:underline">
+            Applications
+          </Link>
+          <Link href="/admin/members" className="hover:underline">
+            Members
+          </Link>
+        </>
       )}
       <Link href="/profile" className="hover:underline">
         Profile
