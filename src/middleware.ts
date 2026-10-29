@@ -18,6 +18,12 @@ export default middleware((req) => {
   const isProfileArea = pathname.startsWith("/profile");
   const isEventsArea = pathname.startsWith("/events");
 
+  // Already signed in and visiting /login → send to their home.
+  if (pathname === "/login" && isLoggedIn) {
+    const dest = user?.role === "Admin" ? "/admin/applications" : "/profile";
+    return NextResponse.redirect(new URL(dest, origin));
+  }
+
   // Anonymous → login (preserve intended destination).
   if ((isAdminArea || isProfileArea || isEventsArea) && !isLoggedIn) {
     const url = new URL("/login", origin);
@@ -34,5 +40,11 @@ export default middleware((req) => {
 });
 
 export const config = {
-  matcher: ["/admin/:path*", "/profile/:path*", "/events", "/events/:path*"],
+  matcher: [
+    "/admin/:path*",
+    "/profile/:path*",
+    "/events",
+    "/events/:path*",
+    "/login",
+  ],
 };
