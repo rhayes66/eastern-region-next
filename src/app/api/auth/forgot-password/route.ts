@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomBytes, createHash } from "crypto";
 import { dbConnect } from "@/lib/db";
-import { User, PasswordReset } from "@/models/User";
+import { User, PasswordReset, ResetCooldown } from "@/models/User";
 import { forgotPasswordSchema } from "@/lib/validation";
 import { sendEmail, passwordResetEmail } from "@/lib/email";
 
@@ -42,13 +42,32 @@ export async function POST(req: NextRequest) {
   const user = await User.findOne({ email });
 
   if (user) {
-    // Cooldown check BEFORE touching existing tokens or sending mail.
-    const recent = await PasswordReset.findOne({
-      user: user._id,
-      createdAt: { $gt: new Date(Date.now() - RESEND_COOLDOWN_MS) },
-    });
-    if (recent) {
-      return nonEnumeratingResponse(); // issued very recently; do nothing
+    // ATOMIC cooldown claim: update the per-user cooldown doc only if its last
+    // issuance is older than the window (or it doesn't exist yet). The unique
+    // index on `user` means that if a recent claim exists, the upsert insert
+    // fails with a duplicate-key error — so only ONE request issues a link per
+    // window, even under concurrency. This runs BEFORE invalidating/sending.
+    const cutoff = new Date(Date.now() - RESEND_COOLDOWN_MS);
+    let claimed = false;
+    try {
+      const res = await ResetCooldown.findOneAndUpdate(
+        { user: user._id, lastIssuedAt: { $lte: cutoff } },
+        { $set: { lastIssuedAt: new Date() } },
+        { upsert: true, returnDocument: "before" }
+      );
+      // res === null with no throw → inserted (first ever request): claimed.
+      // res !== null → matched an old-enough doc and updated it: claimed.
+      claimed = true;
+      void res;
+    } catch (err: unknown) {
+      if ((err as { code?: number }).code === 11000) {
+        claimed = false; // a recent claim already exists: within cooldown
+      } else {
+        throw err;
+      }
+    }
+    if (!claimed) {
+      return nonEnumeratingResponse(); // within cooldown; do nothing
     }
 
     // Invalidate any prior (older) outstanding tokens for this user.

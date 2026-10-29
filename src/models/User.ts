@@ -104,3 +104,24 @@ const PasswordResetSchema = new Schema<IPasswordReset>(
 export const PasswordReset =
   models.PasswordReset ||
   model<IPasswordReset>("PasswordReset", PasswordResetSchema);
+
+// ---- Per-user reset cooldown (atomic issuance throttle, requirement 11) ----
+// One doc per user (unique index). A reset link may only be issued when the
+// last issuance is older than the cooldown window; the claim is made with an
+// atomic findOneAndUpdate so concurrent requests cannot both proceed.
+export interface IResetCooldown extends Document {
+  user: Types.ObjectId;
+  lastIssuedAt: Date;
+}
+
+const ResetCooldownSchema = new Schema<IResetCooldown>(
+  {
+    user: { type: Schema.Types.ObjectId, ref: "User", required: true, unique: true },
+    lastIssuedAt: { type: Date, required: true },
+  },
+  { versionKey: false }
+);
+
+export const ResetCooldown =
+  models.ResetCooldown ||
+  model<IResetCooldown>("ResetCooldown", ResetCooldownSchema);

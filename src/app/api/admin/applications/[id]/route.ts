@@ -97,9 +97,34 @@ export async function PATCH(
     }
   } else {
     // SECURITY: an account with this email already exists (e.g. a Google
-    // sign-in). Promote it to Member but NEVER overwrite its credentials from
-    // the application — doing so would let an attacker who submitted an
+    // sign-in). Promote it to Member but NEVER overwrite its credentials
+    // (password/google/email) — doing so would let an attacker who submitted an
     // application under someone else's email take over that account.
+    // DO copy the approved non-credential application details onto the record,
+    // so the promoted member isn't missing address / home town / contact etc.
+    // Only fill fields the application actually provided (don't blank existing).
+    const detailFields = {
+      title: details.title,
+      firstname: details.firstname,
+      lastname: details.lastname,
+      gender: details.gender,
+      dateOfBirth: details.dateOfBirth,
+      children: details.children,
+      fathersname: details.fathersname,
+      mothersname: details.mothersname,
+      spousename: details.spousename,
+      occupation: details.occupation,
+      address: details.address,
+      postalCode: details.postalCode,
+      city: details.city,
+      ghanacity: details.ghanacity,
+      finlandContact: details.finlandContact,
+    } as const;
+    for (const [key, value] of Object.entries(detailFields)) {
+      if (value !== undefined && value !== null && value !== "") {
+        (member as unknown as Record<string, unknown>)[key] = value;
+      }
+    }
     member.role = "Member";
     await member.save();
   }

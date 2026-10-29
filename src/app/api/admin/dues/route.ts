@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isValidObjectId } from "mongoose";
 import { dbConnect } from "@/lib/db";
 import { Dues } from "@/models/Dues";
+import { User } from "@/models/User";
 import { getSessionUser } from "@/lib/session";
 import { duesSchema } from "@/lib/validation";
 
@@ -34,6 +36,17 @@ export async function POST(req: NextRequest) {
   }
 
   await dbConnect();
+
+  // Reject a well-formed-but-nonexistent member id so we never create an orphan
+  // financial record (the Mongoose ref alone does not verify existence).
+  if (!isValidObjectId(parsed.data.member)) {
+    return NextResponse.json({ error: "Invalid member id" }, { status: 400 });
+  }
+  const memberExists = await User.exists({ _id: parsed.data.member });
+  if (!memberExists) {
+    return NextResponse.json({ error: "Member not found" }, { status: 404 });
+  }
+
   try {
     const dues = await Dues.create({
       ...parsed.data,

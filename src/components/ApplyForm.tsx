@@ -158,9 +158,14 @@ export default function ApplyForm() {
           Choose your login password
         </legend>
         <p className="mb-3 px-0.5 text-xs text-zinc-500">
-          You will use your email and this password to sign in after your
-          application is accepted. Minimum 6 characters with an uppercase
-          letter, a number and a symbol.
+          If this is a new account, you will sign in with your email and this
+          password once your application is accepted. Minimum 6 characters with
+          an uppercase letter, a number and a symbol.{" "}
+          <span className="block mt-1">
+            Already signed in with Google using this email? Keep using{" "}
+            <b>Continue with Google</b> — your existing sign-in stays in place
+            and this password is not applied to it.
+          </span>
         </p>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field

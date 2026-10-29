@@ -48,7 +48,7 @@ async function ProfileContent() {
     .filter((d) => !d.paid)
     .reduce((s, d) => s + d.amount, 0);
   const totalBenefits = benefits
-    .filter((b) => b.status === "Disbursed" || b.status === "Approved")
+    .filter((b) => b.status === "Disbursed")
     .reduce((s, b) => s + b.amount, 0);
 
   return (

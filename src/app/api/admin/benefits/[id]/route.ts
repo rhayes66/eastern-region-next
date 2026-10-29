@@ -30,7 +30,10 @@ export async function PATCH(
   }
 
   benefit.status = body.status;
-  if (body.status === "Approved") benefit.approvedDate = new Date();
+  if (body.status === "Approved") {
+    benefit.approvedDate = new Date();
+    benefit.approvedBy = admin.id as unknown as typeof benefit.approvedBy;
+  }
   if (body.status === "Disbursed") benefit.disbursedDate = new Date();
   if (body.status === "Rejected") benefit.rejectedDate = new Date();
   await benefit.save();

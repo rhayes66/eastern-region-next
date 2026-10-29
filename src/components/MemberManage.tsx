@@ -18,6 +18,7 @@ export default function MemberManage({ memberId }: { memberId: string }) {
     url: string,
     payload: Record<string, unknown>
   ) => {
+    if (busy !== null) return false; // a submission is already in flight
     setBusy(kind);
     setMsg(null);
     try {
@@ -116,7 +117,7 @@ export default function MemberManage({ memberId }: { memberId: string }) {
         </div>
         <button
           type="submit"
-          disabled={busy === "dues"}
+          disabled={busy !== null}
           className="mt-4 rounded-full bg-green-700 px-5 py-2.5 text-sm font-medium text-white hover:bg-green-800 disabled:opacity-60"
         >
           {busy === "dues" ? "Saving…" : "Add dues"}
@@ -145,7 +146,7 @@ export default function MemberManage({ memberId }: { memberId: string }) {
         </div>
         <button
           type="submit"
-          disabled={busy === "benefit"}
+          disabled={busy !== null}
           className="mt-4 rounded-full bg-green-700 px-5 py-2.5 text-sm font-medium text-white hover:bg-green-800 disabled:opacity-60"
         >
           {busy === "benefit" ? "Saving…" : "Grant benefit"}
