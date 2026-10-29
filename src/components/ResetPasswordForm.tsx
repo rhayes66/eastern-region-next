@@ -27,22 +27,27 @@ function ResetInner() {
     setError(null);
     setBusy(true);
     const form = new FormData(e.currentTarget);
-    const res = await fetch("/api/auth/reset-password", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        token,
-        password: form.get("password"),
-        confirmPassword: form.get("confirmPassword"),
-      }),
-    });
-    setBusy(false);
-    if (res.ok) {
-      setDone(true);
-      return;
+    try {
+      const res = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token,
+          password: form.get("password"),
+          confirmPassword: form.get("confirmPassword"),
+        }),
+      });
+      if (res.ok) {
+        setDone(true);
+        return;
+      }
+      const json = await res.json().catch(() => ({}));
+      setError(json.error ?? "Reset failed. Please try again.");
+    } catch {
+      setError("Could not reach the server. Please check your connection and try again.");
+    } finally {
+      setBusy(false);
     }
-    const json = await res.json().catch(() => ({}));
-    setError(json.error ?? "Reset failed. Please try again.");
   };
 
   if (done) {

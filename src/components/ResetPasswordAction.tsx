@@ -17,20 +17,25 @@ export default function ResetPasswordAction({
   const submit = async () => {
     setBusy(true);
     setMsg(null);
-    const res = await fetch(`/api/admin/members/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password }),
-    });
-    setBusy(false);
-    if (res.ok) {
-      setMsg({ ok: true, text: `Password updated for ${name}.` });
-      setPassword("");
-      setOpen(false);
-      return;
+    try {
+      const res = await fetch(`/api/admin/members/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
+      if (res.ok) {
+        setMsg({ ok: true, text: `Password updated for ${name}.` });
+        setPassword("");
+        setOpen(false);
+        return;
+      }
+      const json = await res.json().catch(() => ({}));
+      setMsg({ ok: false, text: json.error ?? "Reset failed." });
+    } catch {
+      setMsg({ ok: false, text: "Could not reach the server. Please try again." });
+    } finally {
+      setBusy(false);
     }
-    const json = await res.json().catch(() => ({}));
-    setMsg({ ok: false, text: json.error ?? "Reset failed." });
   };
 
   if (!open) {

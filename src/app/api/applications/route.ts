@@ -35,14 +35,22 @@ export async function POST(req: NextRequest) {
 
   await dbConnect();
 
-  // Reject if an account with this email already exists (member or applicant).
+  // An ACTIVE account (Member/Admin) already owns this email — they are already
+  // in; tell them to log in rather than re-applying.
   const existingUser = await User.findOne({ email });
-  if (existingUser) {
+  if (existingUser && existingUser.role !== "Pending") {
     return NextResponse.json(
       { error: "An account with this email already exists. Please log in instead." },
       { status: 409 }
     );
   }
+
+  // A "Pending" account is created on a first Google sign-in (src/auth.ts). Such
+  // a user still needs to apply to become a Member, so allow it — but do NOT
+  // accept a password here: this endpoint is unauthenticated and cannot prove
+  // the caller owns that account, so setting credentials would be a takeover
+  // vector. The account keeps its existing sign-in; acceptance only promotes it.
+  const accountIsPending = existingUser?.role === "Pending";
 
   // Guard against duplicate pending submissions by the same email.
   const existingApp = await MemberApplication.findOne({
@@ -56,7 +64,9 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const passwordHash = await bcrypt.hash(password, 10);
+  const passwordHash = accountIsPending
+    ? undefined
+    : await bcrypt.hash(password, 10);
 
   const application = await MemberApplication.create({
     yourDetails: details,

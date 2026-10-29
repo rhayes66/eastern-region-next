@@ -11,18 +11,23 @@ export default function ApplicationActions({ id }: { id: string }) {
   const act = async (action: "accept" | "reject") => {
     setBusy(action);
     setError(null);
-    const res = await fetch(`/api/admin/applications/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action }),
-    });
-    setBusy(null);
-    if (res.ok) {
-      router.refresh();
-      return;
+    try {
+      const res = await fetch(`/api/admin/applications/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      if (res.ok) {
+        router.refresh();
+        return;
+      }
+      const json = await res.json().catch(() => ({}));
+      setError(json.error ?? "Action failed.");
+    } catch {
+      setError("Could not reach the server. Please try again.");
+    } finally {
+      setBusy(null);
     }
-    const json = await res.json().catch(() => ({}));
-    setError(json.error ?? "Action failed.");
   };
 
   return (

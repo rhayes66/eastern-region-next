@@ -63,9 +63,13 @@ export async function PATCH(
 
   // ---- Accept: provision the member account ----
   const email = details.email?.toLowerCase();
-  let member = email ? await User.findOne({ email }) : null;
+  const existing = email ? await User.findOne({ email }) : null;
+  let member = existing;
 
   if (!member) {
+    // New account: create it, then install the password the applicant chose.
+    // The stored value is ALREADY a bcrypt hash, so write it with updateOne to
+    // bypass the pre-save hook (which would otherwise double-hash it).
     member = await User.create({
       email,
       title: details.title,
@@ -85,19 +89,44 @@ export async function PATCH(
       finlandContact: details.finlandContact,
       role: "Member",
     });
+    if (application.passwordHash) {
+      await User.updateOne(
+        { _id: member._id },
+        { $set: { password: application.passwordHash } }
+      );
+    }
   } else {
+    // SECURITY: an account with this email already exists (e.g. a Google
+    // sign-in). Promote it to Member but NEVER overwrite its credentials
+    // (password/google/email) — doing so would let an attacker who submitted an
+    // application under someone else's email take over that account.
+    // DO copy the approved non-credential application details onto the record,
+    // so the promoted member isn't missing address / home town / contact etc.
+    // Only fill fields the application actually provided (don't blank existing).
+    const detailFields = {
+      title: details.title,
+      firstname: details.firstname,
+      lastname: details.lastname,
+      gender: details.gender,
+      dateOfBirth: details.dateOfBirth,
+      children: details.children,
+      fathersname: details.fathersname,
+      mothersname: details.mothersname,
+      spousename: details.spousename,
+      occupation: details.occupation,
+      address: details.address,
+      postalCode: details.postalCode,
+      city: details.city,
+      ghanacity: details.ghanacity,
+      finlandContact: details.finlandContact,
+    } as const;
+    for (const [key, value] of Object.entries(detailFields)) {
+      if (value !== undefined && value !== null && value !== "") {
+        (member as unknown as Record<string, unknown>)[key] = value;
+      }
+    }
     member.role = "Member";
     await member.save();
-  }
-
-  // Set the password the member chose at application time. It is ALREADY a
-  // bcrypt hash, so write it with updateOne to bypass the pre-save hook (which
-  // would otherwise hash it a second time and break login).
-  if (application.passwordHash) {
-    await User.updateOne(
-      { _id: member._id },
-      { $set: { password: application.passwordHash } }
-    );
   }
 
   application.status = "Accepted";
