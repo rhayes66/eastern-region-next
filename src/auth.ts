@@ -1,15 +1,13 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
+import { authConfig } from "@/auth.config";
 import { dbConnect } from "@/lib/db";
 import { User } from "@/models/User";
 import { loginSchema } from "@/lib/validation";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  session: { strategy: "jwt" },
-  pages: {
-    signIn: "/login",
-  },
+  ...authConfig,
   providers: [
     Credentials({
       credentials: {
@@ -33,7 +31,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         return {
           id: user._id.toString(),
           email: user.email,
-          name: [user.firstname, user.lastname].filter(Boolean).join(" ") || user.email,
+          name:
+            [user.firstname, user.lastname].filter(Boolean).join(" ") ||
+            user.email,
           role: user.role,
           picture: user.picture,
         };
@@ -46,6 +46,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
+    ...authConfig.callbacks,
     // Link/create a local User record for Google sign-ins (requirement 9)
     async signIn({ user, account, profile }) {
       if (account?.provider !== "google") return true;
@@ -69,12 +70,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       }
       return true;
     },
+    // Extend the base jwt callback: on Google sign-in the user object lacks the
+    // role, so refresh it from the DB (Node runtime only — never the Edge one).
     async jwt({ token, user }) {
       if (user) {
         token.role = (user as { role?: string }).role;
         token.id = (user as { id?: string }).id;
       }
-      // Always refresh role from DB on Google sign-in (user obj lacks it there)
       if (!token.role && token.email) {
         await dbConnect();
         const dbUser = await User.findOne({ email: token.email });
@@ -84,13 +86,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }
       }
       return token;
-    },
-    async session({ session, token }) {
-      if (session.user) {
-        (session.user as { id?: string }).id = token.id as string;
-        (session.user as { role?: string }).role = token.role as string;
-      }
-      return session;
     },
   },
 });
