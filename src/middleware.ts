@@ -16,9 +16,10 @@ export default middleware((req) => {
 
   const isAdminArea = pathname.startsWith("/admin");
   const isProfileArea = pathname.startsWith("/profile");
+  const isEventsArea = pathname.startsWith("/events");
 
   // Anonymous → login (preserve intended destination).
-  if ((isAdminArea || isProfileArea) && !isLoggedIn) {
+  if ((isAdminArea || isProfileArea || isEventsArea) && !isLoggedIn) {
     const url = new URL("/login", origin);
     url.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(url);
@@ -33,5 +34,5 @@ export default middleware((req) => {
 });
 
 export const config = {
-  matcher: ["/admin/:path*", "/profile/:path*"],
+  matcher: ["/admin/:path*", "/profile/:path*", "/events", "/events/:path*"],
 };
