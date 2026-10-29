@@ -1,8 +1,12 @@
 import { z } from "zod";
-import { MONTHS, DUES_TYPES } from "@/models/Dues";
-import { BENEFIT_CATEGORIES } from "@/models/Benefit";
-import { EVENT_TYPES } from "@/models/Event";
-import { GENDERS, TITLES } from "@/models/User";
+import {
+  MONTHS,
+  DUES_TYPES,
+  BENEFIT_CATEGORIES,
+  EVENT_TYPES,
+  GENDERS,
+  TITLES,
+} from "@/lib/constants";
 
 export const loginSchema = z.object({
   email: z.string().email(),

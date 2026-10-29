@@ -1,11 +1,9 @@
 import { Schema, model, models, Document, Types } from "mongoose";
 import bcrypt from "bcryptjs";
+import { ROLES, TITLES, GENDERS, type Role } from "@/lib/constants";
 
-export const ROLES = ["Member", "Admin", "Pending"] as const;
-export type Role = (typeof ROLES)[number];
-
-export const TITLES = ["Mr.", "Mrs.", "Miss.", "Dr.", "Ms."] as const;
-export const GENDERS = ["Male", "Female", "Other"] as const;
+export { ROLES, TITLES, GENDERS } from "@/lib/constants";
+export type { Role } from "@/lib/constants";
 
 export interface IUser extends Document {
   _id: Types.ObjectId;

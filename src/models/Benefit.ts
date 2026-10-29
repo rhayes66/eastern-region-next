@@ -1,20 +1,7 @@
 import { Schema, model, models, Document, Types } from "mongoose";
+import { BENEFIT_CATEGORIES, BENEFIT_STATUSES } from "@/lib/constants";
 
-export const BENEFIT_CATEGORIES = [
-  "Bereavement",
-  "Medical",
-  "Hardship",
-  "Childbirth",
-  "Wedding",
-  "Other",
-] as const;
-
-export const BENEFIT_STATUSES = [
-  "Requested",
-  "Approved",
-  "Disbursed",
-  "Rejected",
-] as const;
+export { BENEFIT_CATEGORIES, BENEFIT_STATUSES } from "@/lib/constants";
 
 /**
  * A support/benefit granted to a member when they are in need

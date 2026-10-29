@@ -1,12 +1,7 @@
 import { Schema, model, models, Document, Types } from "mongoose";
-import { TITLES, GENDERS } from "./User";
+import { TITLES, GENDERS, APPLICATION_STATUSES } from "@/lib/constants";
 
-export const APPLICATION_STATUSES = [
-  "Incomplete",
-  "Pending",
-  "Accepted",
-  "Rejected",
-] as const;
+export { APPLICATION_STATUSES } from "@/lib/constants";
 export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];
 
 /**
