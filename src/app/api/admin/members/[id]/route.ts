@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { dbConnect } from "@/lib/db";
-import { User } from "@/models/User";
+import { User, PasswordReset } from "@/models/User";
 import { getSessionUser } from "@/lib/session";
 import { adminSetPasswordSchema } from "@/lib/validation";
 
@@ -37,6 +37,10 @@ export async function PATCH(
   // Assigning plaintext marks the field modified → pre-save hook hashes it.
   member.password = parsed.data.password;
   await member.save();
+
+  // Invalidate any outstanding reset tokens, so a previously-issued reset link
+  // cannot be used to overwrite this administrator-set password.
+  await PasswordReset.deleteMany({ user: member._id });
 
   return NextResponse.json({ ok: true });
 }

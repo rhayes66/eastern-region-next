@@ -29,9 +29,14 @@ export async function POST(req: NextRequest) {
   const { token, password } = parsed.data;
   await dbConnect();
 
-  const record = await PasswordReset.findOne({ hash: hashToken(token) });
-  if (!record || record.expiryTimestamp.getTime() < Date.now()) {
-    if (record) await PasswordReset.deleteOne({ _id: record._id }); // clean expired
+  // Atomically CLAIM the token: find an unexpired record by hash and delete it
+  // in one operation, so two concurrent requests cannot both succeed (the link
+  // is genuinely single-use). An expired or unknown token matches nothing.
+  const record = await PasswordReset.findOneAndDelete({
+    hash: hashToken(token),
+    expiryTimestamp: { $gt: new Date() },
+  });
+  if (!record) {
     return NextResponse.json(
       { error: "This reset link is invalid or has expired. Please request a new one." },
       { status: 400 }
@@ -40,14 +45,13 @@ export async function POST(req: NextRequest) {
 
   const user = await User.findById(record.user).select("+password");
   if (!user) {
-    await PasswordReset.deleteOne({ _id: record._id });
     return NextResponse.json({ error: "Account no longer exists." }, { status: 404 });
   }
 
   user.password = password; // plaintext → pre-save hook hashes it
   await user.save();
 
-  // Consume the token so the link cannot be reused.
+  // Belt-and-braces: drop any other outstanding tokens for this user.
   await PasswordReset.deleteMany({ user: user._id });
 
   return NextResponse.json({ ok: true });

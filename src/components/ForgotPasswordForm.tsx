@@ -6,18 +6,25 @@ import { Field } from "@/components/FormField";
 export default function ForgotPasswordForm() {
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setError(null);
     setBusy(true);
     const email = new FormData(e.currentTarget).get("email");
-    await fetch("/api/auth/forgot-password", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email }),
-    });
-    setBusy(false);
-    setDone(true); // always show the same message (no enumeration)
+    try {
+      await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      setDone(true); // always show the same message (no enumeration)
+    } catch {
+      setError("Could not reach the server. Please check your connection and try again.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   if (done) {
@@ -31,6 +38,11 @@ export default function ForgotPasswordForm() {
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
+      {error && (
+        <div className="rounded-md border border-red-600/30 bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-200">
+          {error}
+        </div>
+      )}
       <Field label="Email" name="email" type="email" required />
       <button
         type="submit"

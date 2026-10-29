@@ -70,4 +70,27 @@ describe("password reset flow (requirement 11)", () => {
     expect(rec).not.toBeNull();
     expect(rec!.expiryTimestamp.getTime() < Date.now()).toBe(true);
   });
+
+  it("findOneAndDelete makes the token single-use under concurrency", async () => {
+    const user = await User.create({ email: "r4@x.com", password: "OldPass1!" });
+    const token = "race-token";
+    await PasswordReset.create({
+      hash: hashToken(token),
+      expiryTimestamp: new Date(Date.now() + 3600_000),
+      user: user._id,
+    });
+
+    // Two concurrent claims using the same atomic query the route uses.
+    const claim = () =>
+      PasswordReset.findOneAndDelete({
+        hash: hashToken(token),
+        expiryTimestamp: { $gt: new Date() },
+      });
+    const [a, b] = await Promise.all([claim(), claim()]);
+
+    // Exactly one claim wins; the other gets null.
+    const winners = [a, b].filter(Boolean);
+    expect(winners).toHaveLength(1);
+    expect(await PasswordReset.findOne({ hash: hashToken(token) })).toBeNull();
+  });
 });
