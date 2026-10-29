@@ -63,9 +63,13 @@ export async function PATCH(
 
   // ---- Accept: provision the member account ----
   const email = details.email?.toLowerCase();
-  let member = email ? await User.findOne({ email }) : null;
+  const existing = email ? await User.findOne({ email }) : null;
+  let member = existing;
 
   if (!member) {
+    // New account: create it, then install the password the applicant chose.
+    // The stored value is ALREADY a bcrypt hash, so write it with updateOne to
+    // bypass the pre-save hook (which would otherwise double-hash it).
     member = await User.create({
       email,
       title: details.title,
@@ -85,19 +89,19 @@ export async function PATCH(
       finlandContact: details.finlandContact,
       role: "Member",
     });
+    if (application.passwordHash) {
+      await User.updateOne(
+        { _id: member._id },
+        { $set: { password: application.passwordHash } }
+      );
+    }
   } else {
+    // SECURITY: an account with this email already exists (e.g. a Google
+    // sign-in). Promote it to Member but NEVER overwrite its credentials from
+    // the application — doing so would let an attacker who submitted an
+    // application under someone else's email take over that account.
     member.role = "Member";
     await member.save();
-  }
-
-  // Set the password the member chose at application time. It is ALREADY a
-  // bcrypt hash, so write it with updateOne to bypass the pre-save hook (which
-  // would otherwise hash it a second time and break login).
-  if (application.passwordHash) {
-    await User.updateOne(
-      { _id: member._id },
-      { $set: { password: application.passwordHash } }
-    );
   }
 
   application.status = "Accepted";
