@@ -60,3 +60,26 @@ export function applicationStatusEmail(name: string, accepted: boolean): string 
     ? `<div style="font-family:sans-serif"><h2>Welcome to GERAF, ${safeName}!</h2><p>Your membership application has been <b>accepted</b>. You can now <a href="${base}/login">log in</a> with the email and password you chose, or sign in with Google.</p><p>Forgot your password? <a href="${base}/forgot-password">Reset it here</a>.</p></div>`
     : `<div style="font-family:sans-serif"><h2>GERAF application update</h2><p>Dear ${safeName}, after review your application was not accepted at this time. Please contact the association for details.</p></div>`;
 }
+
+import { CONTACT_DETAILS } from "@/lib/executives";
+
+/** Email sent to the association when a visitor uses the contact form. */
+export function contactEmail(
+  name: string,
+  email: string,
+  subject: string,
+  message: string
+): string {
+  const n = escapeHtml(name);
+  const e = escapeHtml(email);
+  const s = escapeHtml(subject);
+  const m = escapeHtml(message).replace(/\n/g, "<br>");
+  return `<div style="font-family:sans-serif;max-width:560px">
+    <h2>New contact message</h2>
+    <p><b>From:</b> ${n} &lt;${e}&gt;</p>
+    <p><b>Subject:</b> ${s}</p>
+    <hr><p>${m}</p></div>`;
+}
+
+/** Where contact-form messages are delivered. Falls back to the published address. */
+export const CONTACT_INBOX = process.env.CONTACT_INBOX || CONTACT_DETAILS.email;

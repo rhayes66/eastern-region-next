@@ -28,7 +28,10 @@ export const MONTHS = [
 export const DUES_TYPES = ["Monthly", "Yearly", "Donations"] as const;
 
 export const BENEFIT_CATEGORIES = [
-  "Bereavement",
+  "Demise Father",
+  "Demise Mother",
+  "Demise Spouse",
+  "Demise Child",
   "Medical",
   "Hardship",
   "Childbirth",
