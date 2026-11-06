@@ -243,7 +243,14 @@ export default function NavShell({ actions }: { actions: React.ReactNode }) {
               {renderMobileGroup(MEDIA)}
               <div
                 className="flex flex-col gap-3 border-t border-black/10 pt-3 dark:border-white/15"
-                onClick={close}
+                onClick={(e) => {
+                  // `actions` includes the Sign out form's submit button.
+                  // Closing the menu here would unmount the form before the
+                  // native submit runs, silently cancelling sign-out. Only
+                  // close for navigation links (anchors), never for buttons.
+                  const el = (e.target as HTMLElement).closest("a, button");
+                  if (el && el.tagName === "A") close();
+                }}
               >
                 {actions}
               </div>

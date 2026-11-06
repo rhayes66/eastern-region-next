@@ -1,5 +1,5 @@
 import { Schema, model, models, Document, Types } from "mongoose";
-import { BENEFIT_CATEGORIES, BENEFIT_STATUSES } from "@/lib/constants";
+import { BENEFIT_CATEGORY_ENUM, BENEFIT_STATUSES } from "@/lib/constants";
 
 export { BENEFIT_CATEGORIES, BENEFIT_STATUSES } from "@/lib/constants";
 
@@ -26,7 +26,10 @@ export interface IBenefit extends Document {
 const BenefitSchema = new Schema<IBenefit>(
   {
     member: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
-    category: { type: String, enum: BENEFIT_CATEGORIES, required: true },
+    // Validate against the full enum (incl. legacy values) so pre-split
+    // records still pass benefit.save(); the create form only offers the
+    // current BENEFIT_CATEGORIES.
+    category: { type: String, enum: BENEFIT_CATEGORY_ENUM, required: true },
     amount: { type: Number, required: true },
     description: { type: String },
     status: {

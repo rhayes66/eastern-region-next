@@ -36,7 +36,12 @@ const INTERVAL = 5000;
  */
 export default function HomeSlider() {
   const [index, setIndex] = useState(0);
-  const [paused, setPaused] = useState(false);
+  // Hover and keyboard focus are tracked separately: autoplay resumes only
+  // when BOTH are clear, so leaving one doesn't restart the show while the
+  // other is still engaged.
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const paused = hovered || focused;
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const go = (i: number) => setIndex((i + SLIDES.length) % SLIDES.length);
@@ -59,10 +64,10 @@ export default function HomeSlider() {
       aria-roledescription="carousel"
       aria-label="GERAF highlights"
       className="relative h-[320px] w-full overflow-hidden bg-green-900 sm:h-[440px]"
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
-      onFocusCapture={() => setPaused(true)}
-      onBlurCapture={() => setPaused(false)}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocusCapture={() => setFocused(true)}
+      onBlurCapture={() => setFocused(false)}
     >
       {SLIDES.map((s, i) => (
         <div

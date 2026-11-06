@@ -16,18 +16,34 @@ const transporter =
       })
     : null;
 
-export async function sendEmail(to: string, subject: string, html: string): Promise<boolean> {
+/** True only when SMTP is configured; lets callers tell dev (no SMTP) apart
+ *  from a real production delivery failure. */
+export const emailConfigured = Boolean(transporter);
+
+/** Outcome of an email send, so callers can distinguish a real SMTP failure
+ *  (configured but threw) from an unconfigured dev environment. */
+export type EmailResult = "sent" | "failed" | "not-configured";
+
+export async function sendEmailResult(
+  to: string,
+  subject: string,
+  html: string
+): Promise<EmailResult> {
   if (!transporter) {
     console.warn("[email] SMTP not configured — would have sent to", to, "subj:", subject);
-    return false;
+    return "not-configured";
   }
   try {
     await transporter.sendMail({ from, to, subject, html });
-    return true;
+    return "sent";
   } catch (err) {
     console.error("[email] send failed:", err);
-    return false;
+    return "failed";
   }
+}
+
+export async function sendEmail(to: string, subject: string, html: string): Promise<boolean> {
+  return (await sendEmailResult(to, subject, html)) === "sent";
 }
 
 export function passwordResetEmail(resetUrl: string): string {

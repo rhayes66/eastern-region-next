@@ -27,11 +27,21 @@ export default function ProfileEditForm({
 
   const onSubmit = async (data: ProfileInput) => {
     setServerError(null);
-    const res = await fetch("/api/profile", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
+    let res: Response;
+    try {
+      res = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+    } catch {
+      // Transport failure (e.g. lost connectivity): the form state is kept so
+      // the member can retry; surface a clear, retryable error.
+      setServerError(
+        "Couldn't reach the server. Your changes were not saved — please try again."
+      );
+      return;
+    }
     if (res.ok) {
       router.push("/profile");
       router.refresh();

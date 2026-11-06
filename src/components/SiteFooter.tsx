@@ -31,13 +31,25 @@ const SOCIALS = ["Facebook", "Twitter", "LinkedIn"];
 /** Live upcoming events for the footer (streamed; DB read is dynamic). */
 async function UpcomingEvents() {
   await connection();
-  await dbConnect();
-  const now = new Date();
-  const events = (await Event.find({ startDate: { $gte: now } })
-    .sort({ startDate: 1 })
-    .limit(4)
-    .select("title startDate")
-    .lean()) as unknown as EventRow[];
+
+  let events: EventRow[];
+  try {
+    await dbConnect();
+    const now = new Date();
+    events = (await Event.find({ startDate: { $gte: now } })
+      .sort({ startDate: 1 })
+      .limit(4)
+      .select("title startDate")
+      .lean()) as unknown as EventRow[];
+  } catch (err) {
+    // The footer renders on every page (incl. public pages that don't need
+    // the DB). A database outage must not fail the whole route — degrade to
+    // an unavailable state instead of letting the error bubble past Suspense.
+    console.error("[footer] upcoming events unavailable:", err);
+    return (
+      <p className="text-sm text-zinc-500">Events are temporarily unavailable.</p>
+    );
+  }
 
   if (events.length === 0) {
     return <p className="text-sm text-zinc-500">No upcoming events right now.</p>;

@@ -18,11 +18,21 @@ export default function ContactForm() {
 
   const onSubmit = async (data: ContactInput) => {
     setServerError(null);
-    const res = await fetch("/api/contact", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
+    let res: Response;
+    try {
+      res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+    } catch {
+      // Network/transport failure — keep the entered message so the visitor
+      // can simply retry, and show a clear, retryable error.
+      setServerError(
+        "Couldn't reach the server. Check your connection and try again."
+      );
+      return;
+    }
     const json = await res.json().catch(() => ({}));
     if (res.ok) {
       setDone(json.message ?? "Thanks — your message was received.");
