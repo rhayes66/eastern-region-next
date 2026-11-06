@@ -190,3 +190,42 @@ describe("resetPasswordSchema", () => {
     expect(r.success).toBe(false);
   });
 });
+
+import { profileSchema } from "@/lib/validation";
+
+describe("profileSchema", () => {
+  const base = {
+    title: "",
+    firstname: "Kofi",
+    lastname: "Mensah",
+    gender: "Male",
+    dateOfBirth: "",
+    occupation: "",
+    address: "Street 1",
+    city: "",
+    postalCode: "",
+    ghanacity: "Koforidua",
+    finlandContact: "+358401234567",
+    spousename: "",
+    children: "",
+    fathersname: "",
+    mothersname: "",
+    nextkin: "",
+    nextkinContact: "",
+  };
+  it("accepts a valid profile and strips role/email/password", () => {
+    const r = profileSchema.parse({
+      ...base,
+      role: "Admin",
+      email: "x@y.fi",
+      password: "Abc!123",
+    });
+    expect(r).not.toHaveProperty("role");
+    expect(r).not.toHaveProperty("email");
+    expect(r).not.toHaveProperty("password");
+  });
+  it("requires name, address, hometown and contact", () => {
+    expect(profileSchema.safeParse({ ...base, firstname: "" }).success).toBe(false);
+    expect(profileSchema.safeParse({ ...base, finlandContact: " " }).success).toBe(false);
+  });
+});

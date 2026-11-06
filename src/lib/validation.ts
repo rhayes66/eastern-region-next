@@ -110,3 +110,35 @@ export const resetPasswordSchema = z
 export const adminSetPasswordSchema = z.object({
   password: passwordRule,
 });
+
+// Member edits their OWN profile. Deliberately excludes email, role, password
+// and picture: unknown keys are stripped by zod, so they cannot be mass-assigned.
+export const profileSchema = z.object({
+  title: z.union([z.enum(TITLES), z.literal("")]),
+  firstname: z.string().trim().min(1, "Full name is required"),
+  lastname: z.string().trim().min(1, "Last name is required"),
+  gender: z.enum(GENDERS),
+  dateOfBirth: z.string(),
+  occupation: z.string().trim(),
+  address: z.string().trim().min(1, "Location address is required"),
+  city: z.string().trim(),
+  postalCode: z.string().trim(),
+  ghanacity: z.string().trim().min(1, "Home town in Ghana is required"),
+  finlandContact: z.string().trim().min(1, "Finland contact number is required"),
+  spousename: z.string().trim(),
+  children: z.string().trim(),
+  fathersname: z.string().trim(),
+  mothersname: z.string().trim(),
+  nextkin: z.string().trim(),
+  nextkinContact: z.string().trim(),
+});
+export type ProfileInput = z.infer<typeof profileSchema>;
+
+// Public contact form (anyone may submit).
+export const contactSchema = z.object({
+  name: z.string().trim().min(1, "Name is required").max(100),
+  email: z.string().email("A valid email is required"),
+  subject: z.string().trim().min(1, "Subject is required").max(150),
+  message: z.string().trim().min(1, "Message is required").max(5000),
+});
+export type ContactInput = z.infer<typeof contactSchema>;

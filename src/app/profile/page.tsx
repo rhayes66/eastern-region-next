@@ -1,9 +1,15 @@
 import { Suspense } from "react";
 import { getSessionUser } from "@/lib/session";
 import { dbConnect } from "@/lib/db";
+import { User } from "@/models/User";
 import { Dues } from "@/models/Dues";
 import { Benefit } from "@/models/Benefit";
 import { sortDues } from "@/lib/dues-sort";
+import { totalBenefitsReceived } from "@/lib/benefits";
+import { PROFILE_DETAIL_KEYS } from "@/lib/profile-fields";
+import { ProfileDetails } from "@/components/ProfileDetails";
+import Link from "next/link";
+import { DuesGrid } from "@/components/DuesGrid";
 
 export const metadata = { title: "My profile — GERAF" };
 
@@ -15,6 +21,9 @@ type DuesRow = {
   duesType: string;
   paid: boolean;
 };
+type ProfileDoc = Record<string, string | undefined>;
+
+
 type BenefitRow = {
   _id: { toString(): string };
   category: string;
@@ -26,7 +35,6 @@ type BenefitRow = {
 
 const eur = (n: number) =>
   new Intl.NumberFormat("en-FI", { style: "currency", currency: "EUR" }).format(n);
-const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 async function ProfileContent() {
   const user = await getSessionUser();
@@ -35,7 +43,10 @@ async function ProfileContent() {
   }
 
   await dbConnect();
-  const [duesRaw, benefits] = await Promise.all([
+  const [profile, duesRaw, benefits] = await Promise.all([
+    User.findById(user.id)
+      .select(`${PROFILE_DETAIL_KEYS.join(" ")} picture`)
+      .lean() as Promise<unknown> as Promise<ProfileDoc | null>,
     Dues.find({ member: user.id }).lean() as Promise<unknown> as Promise<DuesRow[]>,
     Benefit.find({ member: user.id }).sort({ requestedDate: -1 }).lean() as Promise<
       unknown
@@ -47,18 +58,34 @@ async function ProfileContent() {
   const totalOutstanding = dues
     .filter((d) => !d.paid)
     .reduce((s, d) => s + d.amount, 0);
-  const totalBenefits = benefits
-    .filter((b) => b.status === "Disbursed")
-    .reduce((s, b) => s + b.amount, 0);
+  const totalBenefits = totalBenefitsReceived(benefits);
 
   return (
     <>
-      <h1 className="text-2xl font-bold text-green-700 dark:text-green-500">
-        Welcome{user.name ? `, ${user.name}` : ""}
-      </h1>
-      <p className="mt-1 text-sm text-zinc-500">
-        Role: <span className="font-medium">{user.role}</span>
-      </p>
+      <div className="flex items-center gap-4">
+        {profile?.picture ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={profile.picture}
+            alt={`Profile photo of ${user.name ?? "member"}`}
+            className="h-16 w-16 rounded-full border border-black/10 object-cover dark:border-white/15"
+          />
+        ) : null}
+        <div>
+          <h1 className="text-2xl font-bold text-green-700 dark:text-green-500">
+            Welcome{user.name ? `, ${user.name}` : ""}
+          </h1>
+          <p className="mt-1 text-sm text-zinc-500">
+            Role: <span className="font-medium">{user.role}</span>
+          </p>
+        </div>
+        <Link
+          href="/profile/edit"
+          className="ml-auto rounded-md border border-black/15 px-3 py-1.5 text-sm hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
+        >
+          Edit profile
+        </Link>
+      </div>
 
       {/* Summary cards */}
       <div className="mt-6 grid gap-4 sm:grid-cols-3">
@@ -71,45 +98,20 @@ async function ProfileContent() {
         <SummaryCard label="Benefits received" value={eur(totalBenefits)} tone="neutral" />
       </div>
 
+      {/* Personal details */}
+      <section className="mt-10">
+        <h2 className="text-lg font-semibold">Personal details</h2>
+        <ProfileDetails profile={profile} />
+      </section>
+
       {/* Dues */}
       <section className="mt-10">
-        <h2 className="text-lg font-semibold">My contributions</h2>
+        <h2 className="text-lg font-semibold">Dues details</h2>
         {dues.length === 0 ? (
           <p className="mt-2 text-sm text-zinc-500">No dues recorded yet.</p>
         ) : (
-          <div className="mt-3 overflow-x-auto rounded-xl border border-black/10 dark:border-white/15">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-black/5 text-xs uppercase text-zinc-500 dark:bg-white/10">
-                <tr>
-                  <th className="px-4 py-2">Period</th>
-                  <th className="px-4 py-2">Type</th>
-                  <th className="px-4 py-2">Amount</th>
-                  <th className="px-4 py-2">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-black/5 dark:divide-white/10">
-                {dues.map((d) => (
-                  <tr key={d._id.toString()}>
-                    <td className="px-4 py-2">
-                      {cap(d.month)} {d.year}
-                    </td>
-                    <td className="px-4 py-2">{d.duesType}</td>
-                    <td className="px-4 py-2">{eur(d.amount)}</td>
-                    <td className="px-4 py-2">
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                          d.paid
-                            ? "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200"
-                            : "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200"
-                        }`}
-                      >
-                        {d.paid ? "Paid" : "Unpaid"}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="mt-3">
+            <DuesGrid dues={dues} />
           </div>
         )}
       </section>
@@ -173,7 +175,7 @@ function SummaryCard({
 
 export default function ProfilePage() {
   return (
-    <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-12">
+    <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-12">
       <Suspense
         fallback={<p className="text-sm text-zinc-500">Loading your profile…</p>}
       >

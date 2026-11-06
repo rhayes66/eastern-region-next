@@ -17,8 +17,11 @@ type EventRow = {
 
 const fmt = (d: Date) =>
   new Intl.DateTimeFormat("en-GB", {
-    dateStyle: "medium",
-    timeStyle: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
     timeZone: "Europe/Helsinki",
     timeZoneName: "short",
   }).format(new Date(d));
