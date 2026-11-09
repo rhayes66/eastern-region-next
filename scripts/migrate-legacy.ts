@@ -28,10 +28,14 @@
  *     names. CONFIRM them against a real exported sample and adjust before a
  *     committed run — a wrong name silently drops that field.
  *
- * NOTE ON PASSWORDS: legacy password hashes are NOT copied (the old app's
- * hashing differs from this app's bcrypt pre-save hook). Imported members have
- * no password and must use the forgot-password flow or Google sign-in. See
- * `LEGACY_PASSWORD_NOTE` handling below.
+ * NOTE ON PASSWORDS: the legacy GERAF app already hashes passwords with the
+ * SAME scheme this app uses (bcrypt, $2a$10$…), so existing hashes ARE copied
+ * verbatim. The copy must bypass this app's pre-save hook, which would re-hash
+ * an already-hashed value and break login (double bcrypt). We therefore write
+ * the hash with an unhook'd path (markModified reset) so imported members keep
+ * their current password. Members with no legacy password simply have none and
+ * use forgot-password / Google. Legacy "Pending" stubs with no email/phone are
+ * skipped entirely.
  */
 import "dotenv/config";
 import mongoose from "mongoose";
@@ -48,10 +52,14 @@ const COMMIT = process.argv.includes("--commit");
 // -------------------------------------------------------------------------
 // Old collection names — adjust if the old DB uses different names.
 // -------------------------------------------------------------------------
+// The old GERAF database (db name "geraf") holds: users, dues,
+// memberapplications, passwordresets. There is NO events collection.
+// Member identity lives IN `users` (not in memberapplications), so we migrate
+// users + dues only. passwordresets are ephemeral and intentionally ignored.
 const OLD_COLLECTIONS = {
   users: "users",
-  dues: "dues", // might be "contributions" in the old app
-  events: "events",
+  dues: "dues",
+  events: "events", // absent in GERAF — handled gracefully if missing
 };
 
 // A loose shape for old documents — we read untyped and map explicitly.
@@ -98,7 +106,31 @@ function normaliseRole(v: unknown): (typeof ROLES)[number] {
 // Each maps one old document to the new model's field shape.
 // -------------------------------------------------------------------------
 
-/** Old member/user → new User fields (no password; see note above). */
+// A legacy bcrypt hash looks like $2a$ / $2b$ / $2y$ followed by a cost and 53
+// base64 chars. Only a value in this exact shape is safe to copy verbatim.
+const BCRYPT_RE = /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/;
+
+/** Only accept a legacy password if it is already a bcrypt hash. */
+function legacyPasswordHash(v: unknown): string | undefined {
+  const s = str(v);
+  return s && BCRYPT_RE.test(s) ? s : undefined;
+}
+
+/**
+ * Combine the GERAF next-of-kin fields into the new single "nextkin" field.
+ * Old schema splits them: `nextking` = kin's NAME, `nextkin` = RELATIONSHIP
+ * ("Children", "Spouse"…). The new schema has one "Next of kin" field (name)
+ * plus a contact, so fold the relationship into the name to avoid losing it:
+ *   "Fidel Hayes (Children)".
+ */
+function mapNextKin(old: OldDoc): string | undefined {
+  const name = str(old.nextking) ?? str(old.nextOfKin) ?? str(old.nextKinName);
+  const relation = str(old.nextkin); // relationship in GERAF
+  if (name && relation) return `${name} (${relation})`;
+  return name ?? relation;
+}
+
+/** Old member/user → new User fields (plus bcrypt password when present). */
 function mapUser(old: OldDoc) {
   return {
     email: str(old.email)?.toLowerCase(),
@@ -113,7 +145,8 @@ function mapUser(old: OldDoc) {
     fathersname: str(old.fathersname) ?? str(old.fatherName),
     mothersname: str(old.mothersname) ?? str(old.motherName),
     spousename: str(old.spousename) ?? str(old.spouseName),
-    nextkin: str(old.nextkin) ?? str(old.nextOfKin),
+    // NOTE: GERAF `nextking` = name, `nextkin` = relationship — see mapNextKin.
+    nextkin: mapNextKin(old),
     nextkinContact: str(old.nextkinContact) ?? str(old.nextOfKinContact),
     occupation: str(old.occupation),
     address: str(old.address),
@@ -121,6 +154,8 @@ function mapUser(old: OldDoc) {
     city: str(old.city),
     ghanacity: str(old.ghanacity) ?? str(old.hometown) ?? str(old.homeTown),
     picture: str(old.picture) ?? str(old.photo),
+    // `set` is a stray mangled $set update written as literal data on one old
+    // doc; `normaliseRole` reads the top-level role and ignores it.
     role: normaliseRole(old.role),
   };
 }
@@ -138,6 +173,15 @@ function mapDues(old: OldDoc, memberId: mongoose.Types.ObjectId) {
       (t) => t.toLowerCase() === rawType.toLowerCase()
     ) ?? "Monthly";
 
+  // GERAF dues have no explicit `paid` flag — a row carries a `paidDate` when
+  // the contribution was recorded as paid. Derive `paid` from that (falling
+  // back to an explicit flag if a future export ever has one).
+  const paidDate = old.paidDate ? new Date(old.paidDate as string) : undefined;
+  const paid =
+    old.paid !== undefined || old.isPaid !== undefined
+      ? bool(old.paid ?? old.isPaid)
+      : paidDate !== undefined;
+
   return {
     member: memberId,
     category: str(old.category),
@@ -146,8 +190,8 @@ function mapDues(old: OldDoc, memberId: mongoose.Types.ObjectId) {
     month,
     year,
     duesType,
-    paid: bool(old.paid ?? old.isPaid),
-    paidDate: old.paidDate ? new Date(old.paidDate as string) : undefined,
+    paid,
+    paidDate,
     addedDate: old.addedDate ? new Date(old.addedDate as string) : new Date(),
   };
 }
@@ -188,7 +232,7 @@ async function main() {
   await dbConnect();
 
   const stats = {
-    users: { read: 0, written: 0, skipped: 0 },
+    users: { read: 0, written: 0, skipped: 0, withPassword: 0 },
     dues: { read: 0, written: 0, skipped: 0 },
     events: { read: 0, written: 0, skipped: 0 },
   };
@@ -209,8 +253,11 @@ async function main() {
       continue;
     }
 
+    const legacyHash = legacyPasswordHash(old.password);
+
     if (!COMMIT) {
       stats.users.written++; // would-write
+      if (legacyHash) stats.users.withPassword++;
       const fakeId = new mongoose.Types.ObjectId();
       idByOldUser.set(String(old._id), fakeId);
       if (doc.email) idByEmail.set(doc.email, fakeId);
@@ -219,14 +266,22 @@ async function main() {
 
     // Idempotent upsert by email (or phone when no email).
     const query = doc.email ? { email: doc.email } : { phone: doc.phone };
-    const existing = await User.findOne(query);
-    let saved;
-    if (existing) {
-      existing.set(doc);
-      saved = await existing.save();
-    } else {
-      saved = await User.create(doc);
+    const existing = await User.findOne(query).select("+password");
+    const target = existing ?? new User();
+    target.set(doc);
+
+    // Carry the already-bcrypt'd legacy hash verbatim. Setting it marks the
+    // path modified, which would trigger the pre-save re-hash (double bcrypt),
+    // so immediately unmark it so save() writes the hash untouched. Only ever
+    // overwrite an empty password — never clobber a password already set in
+    // the new DB.
+    if (legacyHash && !target.password) {
+      target.password = legacyHash;
+      target.unmarkModified("password");
+      stats.users.withPassword++;
     }
+
+    const saved = await target.save();
     stats.users.written++;
     idByOldUser.set(String(old._id), saved._id);
     if (doc.email) idByEmail.set(doc.email, saved._id);
@@ -303,8 +358,14 @@ async function main() {
   } else {
     console.log("\nCOMMIT complete.");
     console.log(
-      "Reminder: imported members have NO password — notify them to use" +
-        " 'Forgot password' or Google sign-in to gain access."
+      `Passwords: ${stats.users.withPassword} member(s) kept their legacy` +
+        " bcrypt password and can log in as before."
+    );
+    console.log(
+      "Members WITHOUT a legacy password must use 'Forgot password' or Google" +
+        " sign-in. (Picture filenames were copied as-is; the old uploads/ files" +
+        " are not migrated yet — profile photos will show the initials fallback" +
+        " until re-uploaded.)"
     );
   }
 
