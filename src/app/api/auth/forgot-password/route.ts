@@ -82,7 +82,13 @@ export async function POST(req: NextRequest) {
 
     const base = process.env.AUTH_URL ?? "http://localhost:3000";
     const resetUrl = `${base}/reset-password?token=${token}`;
-    await sendEmail(email, "Reset your GERAF password", passwordResetEmail(resetUrl));
+    const sent = await sendEmail(email, "Reset your GERAF password", passwordResetEmail(resetUrl));
+    // DEV ONLY: with no SMTP configured nothing is delivered, so print the link
+    // to the server terminal to make the flow testable. Never in production —
+    // a reset link is a credential.
+    if (!sent && process.env.NODE_ENV !== "production") {
+      console.warn(`[dev] Password reset link for ${email}: ${resetUrl}`);
+    }
   }
 
   return nonEnumeratingResponse();
