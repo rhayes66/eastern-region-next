@@ -1,32 +1,39 @@
 /**
- * Legacy → new database migration (MongoDB → MongoDB).
+ * Legacy → new database migration (GERAF mongodump → new MongoDB).
  * -------------------------------------------------------------------------
- * Copies members, dues/contributions and events from the OLD GERAF database
- * into this app's NEW schema. It READS the old DB with the raw driver (so it
- * needs no knowledge of the old models) and WRITES through this app's Mongoose
- * models, so every inserted document is validated against the current schema.
+ * Copies members and dues/contributions from a GERAF `mongodump` directory
+ * (the `.bson` files, no running Mongo required) into this app's NEW schema.
+ * It READS the dump `.bson` files directly with the `bson` parser and WRITES
+ * through this app's Mongoose models, so every inserted document is validated
+ * against the current schema.
  *
  * SAFETY
  *  - DRY RUN by default: prints what it WOULD do and writes nothing. Pass
  *    `--commit` to actually write.
- *  - Idempotent: re-running updates existing records (matched by email for
- *    users, by member+month+year for dues) instead of duplicating.
- *  - Read-only on the old DB. Never drops or modifies the source.
+ *  - Idempotent: re-running updates existing records (matched by email/phone
+ *    for users, by member+month+year for dues) instead of duplicating.
+ *  - Read-only on the source: it only reads the dump files, never writes them.
  *  - Always test against a COPY of the new DB before pointing it at prod.
  *
  * USAGE
  *   # 1. dry run (default) — shows the mapping, writes nothing
- *   OLD_MONGODB_URI="mongodb+srv://…/olddb" \
+ *   LEGACY_DUMP_DIR="~/legacy-dump/geraf" \
  *   MONGODB_URI="mongodb+srv://…/newdb" \
  *     npx tsx scripts/migrate-legacy.ts
  *
  *   # 2. real run
- *   OLD_MONGODB_URI="…" MONGODB_URI="…" \
+ *   LEGACY_DUMP_DIR="~/legacy-dump/geraf" MONGODB_URI="…" \
  *     npx tsx scripts/migrate-legacy.ts --commit
  *
- * ⚠️  FIELD MAPPING: the three `map*` functions below assume likely old field
- *     names. CONFIRM them against a real exported sample and adjust before a
- *     committed run — a wrong name silently drops that field.
+ *   LEGACY_DUMP_DIR must point at the directory that CONTAINS the collection
+ *   .bson files (e.g. the `geraf/` folder with users.bson, dues.bson). A
+ *   leading `~` is expanded to the home directory.
+ *
+ * FIELD MAPPING: the `map*` functions below are tuned to the real GERAF schema
+ * (verified against an exported sample): members live in `users`, next-of-kin
+ * name is `nextking` and relationship is `nextkin`, dues `paid` is derived from
+ * `paidDate`. `memberapplications` (a subset of `users` plus test rows) and
+ * `passwordresets` (ephemeral) are intentionally NOT migrated.
  *
  * NOTE ON PASSWORDS: the legacy GERAF app already hashes passwords with the
  * SAME scheme this app uses (bcrypt, $2a$10$…), so existing hashes ARE copied
@@ -38,8 +45,11 @@
  * skipped entirely.
  */
 import "dotenv/config";
+import { readFileSync, existsSync } from "node:fs";
+import { join, isAbsolute } from "node:path";
+import { homedir } from "node:os";
 import mongoose from "mongoose";
-import { MongoClient } from "mongodb";
+import { deserialize } from "bson";
 
 import { dbConnect } from "../src/lib/db";
 import { User } from "../src/models/User";
@@ -64,6 +74,45 @@ const OLD_COLLECTIONS = {
 
 // A loose shape for old documents — we read untyped and map explicitly.
 type OldDoc = Record<string, unknown>;
+
+// -------------------------------------------------------------------------
+// Dump reader — parse a mongodump `.bson` file into documents, with no running
+// Mongo. A BSON file is a back-to-back sequence of documents, each prefixed
+// with its own 4-byte little-endian length. (Same walk as inspect-dump.ts.)
+// -------------------------------------------------------------------------
+function expandHome(p: string): string {
+  if (p === "~") return homedir();
+  if (p.startsWith("~/")) return join(homedir(), p.slice(2));
+  return p;
+}
+
+function resolveDumpDir(): string {
+  const raw = process.env.LEGACY_DUMP_DIR;
+  if (!raw) throw new Error("Set LEGACY_DUMP_DIR (the mongodump directory that contains the .bson files).");
+  const dir = expandHome(raw);
+  const abs = isAbsolute(dir) ? dir : join(process.cwd(), dir);
+  if (!existsSync(abs)) throw new Error(`LEGACY_DUMP_DIR does not exist: ${abs}`);
+  return abs;
+}
+
+/** Read `<dumpDir>/<collection>.bson` into an array of documents. Returns an
+ *  empty array (not an error) when the file is absent, so an optional
+ *  collection like `events` is simply skipped. */
+function readBsonCollection(dumpDir: string, collection: string): OldDoc[] {
+  const file = join(dumpDir, `${collection}.bson`);
+  if (!existsSync(file)) return [];
+  const buf = readFileSync(file);
+  const docs: OldDoc[] = [];
+  let offset = 0;
+  while (offset < buf.length) {
+    const size = buf.readInt32LE(offset);
+    if (size <= 0 || offset + size > buf.length) break;
+    const slice = buf.subarray(offset, offset + size);
+    docs.push(deserialize(slice) as OldDoc);
+    offset += size;
+  }
+  return docs;
+}
 
 // -------------------------------------------------------------------------
 // Helpers
@@ -215,18 +264,14 @@ function mapEvent(old: OldDoc) {
 // Migration
 // -------------------------------------------------------------------------
 async function main() {
-  const oldUri = process.env.OLD_MONGODB_URI;
   const newUri = process.env.MONGODB_URI;
-  if (!oldUri) throw new Error("Set OLD_MONGODB_URI (source database).");
   if (!newUri) throw new Error("Set MONGODB_URI (target/new database).");
-  if (oldUri === newUri) throw new Error("OLD_MONGODB_URI and MONGODB_URI must differ.");
+
+  // Source: a mongodump directory of .bson files (read-only, no running Mongo).
+  const dumpDir = resolveDumpDir();
 
   console.log(COMMIT ? "=== COMMIT RUN (writes enabled) ===" : "=== DRY RUN (no writes) ===");
-
-  // Source: raw driver (read-only, no models).
-  const oldClient = new MongoClient(oldUri);
-  await oldClient.connect();
-  const oldDb = oldClient.db(); // db from the URI
+  console.log(`Source dump: ${dumpDir}`);
 
   // Target: this app's Mongoose connection + validated models.
   await dbConnect();
@@ -243,7 +288,13 @@ async function main() {
   const idByEmail = new Map<string, mongoose.Types.ObjectId>();
 
   // ---- Users --------------------------------------------------------------
-  const oldUsers = await oldDb.collection(OLD_COLLECTIONS.users).find({}).toArray();
+  const oldUsers = readBsonCollection(dumpDir, OLD_COLLECTIONS.users);
+  if (oldUsers.length === 0) {
+    throw new Error(
+      `No users found — is ${OLD_COLLECTIONS.users}.bson in ${dumpDir}? ` +
+        "LEGACY_DUMP_DIR must point at the folder containing the .bson files."
+    );
+  }
   for (const old of oldUsers) {
     stats.users.read++;
     const doc = mapUser(old);
@@ -288,7 +339,7 @@ async function main() {
   }
 
   // ---- Dues ---------------------------------------------------------------
-  const oldDues = await oldDb.collection(OLD_COLLECTIONS.dues).find({}).toArray();
+  const oldDues = readBsonCollection(dumpDir, OLD_COLLECTIONS.dues);
   for (const old of oldDues) {
     stats.dues.read++;
     // Re-link to the migrated member: try old member id, then old email.
@@ -323,30 +374,30 @@ async function main() {
   }
 
   // ---- Events -------------------------------------------------------------
-  try {
-    const oldEvents = await oldDb.collection(OLD_COLLECTIONS.events).find({}).toArray();
-    for (const old of oldEvents) {
-      stats.events.read++;
-      const doc = mapEvent(old);
-      if (!doc) {
-        stats.events.skipped++;
-        console.warn("  skip event (missing title/startDate):", String(old._id));
-        continue;
-      }
-      if (!COMMIT) {
-        stats.events.written++;
-        continue;
-      }
-      // Idempotent on (title, startDate).
-      await Event.updateOne(
-        { title: doc.title, startDate: doc.startDate },
-        { $set: doc },
-        { upsert: true }
-      );
-      stats.events.written++;
+  // GERAF has no events collection; readBsonCollection returns [] if absent.
+  const oldEvents = readBsonCollection(dumpDir, OLD_COLLECTIONS.events);
+  if (oldEvents.length === 0) {
+    console.log("  (no events.bson in dump — skipping events)");
+  }
+  for (const old of oldEvents) {
+    stats.events.read++;
+    const doc = mapEvent(old);
+    if (!doc) {
+      stats.events.skipped++;
+      console.warn("  skip event (missing title/startDate):", String(old._id));
+      continue;
     }
-  } catch {
-    console.log("  (no events collection in old DB — skipping events)");
+    if (!COMMIT) {
+      stats.events.written++;
+      continue;
+    }
+    // Idempotent on (title, startDate).
+    await Event.updateOne(
+      { title: doc.title, startDate: doc.startDate },
+      { $set: doc },
+      { upsert: true }
+    );
+    stats.events.written++;
   }
 
   // ---- Report -------------------------------------------------------------
@@ -369,7 +420,6 @@ async function main() {
     );
   }
 
-  await oldClient.close();
   await mongoose.disconnect();
   process.exit(0);
 }
