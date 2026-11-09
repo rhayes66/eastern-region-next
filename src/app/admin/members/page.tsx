@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { connection } from "next/server";
 import { dbConnect } from "@/lib/db";
+import { requireAdmin } from "@/lib/session";
 import { User } from "@/models/User";
 import ResetPasswordAction from "@/components/ResetPasswordAction";
 
@@ -25,6 +26,7 @@ const roleBadge: Record<string, string> = {
 
 async function MembersTable() {
   await connection();
+  await requireAdmin(); // live DB role check, right next to the data
   await dbConnect();
   const users = (await User.find({})
     .select("email firstname lastname role finlandContact google")

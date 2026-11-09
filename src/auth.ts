@@ -50,6 +50,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     // Link/create a local User record for Google sign-ins (requirement 9)
     async signIn({ user, account, profile }) {
       if (account?.provider !== "google") return true;
+      // Accounts are linked to existing users BY EMAIL (allowDangerousEmailAccountLinking),
+      // so the email must be one Google has verified. Otherwise someone could
+      // claim another person's address — including an admin's — on a Google
+      // account that never proved ownership of it.
+      if (profile?.email_verified !== true) return false;
       await dbConnect();
       const email = user.email ?? profile?.email;
       if (!email) return false;

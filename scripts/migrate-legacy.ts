@@ -152,9 +152,23 @@ function normaliseMonth(v: unknown): string | undefined {
 }
 
 /** Map an old role value into this app's ROLES enum. */
-function normaliseRole(v: unknown): (typeof ROLES)[number] {
+// Admin is NEVER carried over from the legacy data on its own. The old DB held
+// junk and hostile admin accounts, so only emails listed in MIGRATE_ADMIN_EMAILS
+// (comma-separated) keep Admin; every other legacy Admin becomes a Member.
+const ADMIN_ALLOWLIST = new Set(
+  (process.env.MIGRATE_ADMIN_EMAILS ?? "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean)
+);
+
+function normaliseRole(v: unknown, email?: string): (typeof ROLES)[number] {
   const s = String(v ?? "").trim().toLowerCase();
-  if (s === "admin") return "Admin";
+  if (s === "admin") {
+    if (email && ADMIN_ALLOWLIST.has(email)) return "Admin";
+    console.warn(`  legacy Admin ${email ?? "(no email)"} not in MIGRATE_ADMIN_EMAILS → Member`);
+    return "Member";
+  }
   if (s === "member" || s === "active") return "Member";
   return "Pending";
 }
@@ -214,7 +228,7 @@ function mapUser(old: OldDoc) {
     picture: str(old.picture) ?? str(old.photo),
     // `set` is a stray mangled $set update written as literal data on one old
     // doc; `normaliseRole` reads the top-level role and ignores it.
-    role: normaliseRole(old.role),
+    role: normaliseRole(old.role, str(old.email)?.toLowerCase()),
   };
 }
 
@@ -333,7 +347,15 @@ async function main() {
     const query = doc.email ? { email: doc.email } : { phone: doc.phone };
     const existing = await User.findOne(query).select("+password");
     const target = existing ?? new User();
-    target.set(doc);
+    // Re-running must never change the role of an account that already exists
+    // in the new DB (e.g. it must not demote or promote a current admin).
+    if (existing) {
+      const { role: _ignored, ...withoutRole } = doc;
+      void _ignored;
+      target.set(withoutRole);
+    } else {
+      target.set(doc);
+    }
 
     // Carry the already-bcrypt'd legacy hash verbatim. Setting it marks the
     // path modified, which would trigger the pre-save re-hash (double bcrypt),

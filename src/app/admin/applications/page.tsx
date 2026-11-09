@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { connection } from "next/server";
+import { requireAdmin } from "@/lib/session";
 import { dbConnect } from "@/lib/db";
 import { MemberApplication } from "@/models/MemberApplication";
 import ApplicationActions from "@/components/ApplicationActions";
@@ -29,6 +30,7 @@ const statusBadge: Record<string, string> = {
 /** Dynamic part: queried per-request and streamed in via Suspense (PPR). */
 async function ApplicationsTable() {
   await connection(); // defer to request time; never query the DB at build
+  await requireAdmin(); // live DB role check, right next to the data
   await dbConnect();
   const applications = (await MemberApplication.find({})
     .sort({ createdAt: -1 })

@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { connection } from "next/server";
 import { notFound } from "next/navigation";
+import { requireAdmin } from "@/lib/session";
 import Link from "next/link";
 import { dbConnect } from "@/lib/db";
 import { User } from "@/models/User";
@@ -36,6 +37,7 @@ type MemberDoc = Record<string, string | undefined> & {
 
 async function MemberDetail({ params }: { params: Promise<{ id: string }> }) {
   await connection();
+  await requireAdmin(); // live DB role check, right next to the data
   const { id } = await params;
   await dbConnect();
 

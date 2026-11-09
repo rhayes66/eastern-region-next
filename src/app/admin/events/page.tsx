@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { connection } from "next/server";
+import { requireAdmin } from "@/lib/session";
 import { dbConnect } from "@/lib/db";
 import { Event } from "@/models/Event";
 import EventForm from "@/components/EventForm";
@@ -28,6 +29,7 @@ const fmt = (d: Date) =>
 
 async function EventsAdminList() {
   await connection();
+  await requireAdmin(); // live DB role check, right next to the data
   await dbConnect();
   const events = (await Event.find({})
     .sort({ startDate: -1 })
