@@ -72,6 +72,15 @@ const OLD_COLLECTIONS = {
   events: "events", // absent in GERAF — handled gracefully if missing
 };
 
+// Accounts found in the legacy DB that are NOT real members (test/junk or
+// suspected hostile signups, incl. two with Admin role). Never migrate these.
+const BLOCKED_EMAILS = new Set(
+  (process.env.MIGRATE_BLOCKED_EMAILS ?? "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean)
+);
+
 // A loose shape for old documents — we read untyped and map explicitly.
 type OldDoc = Record<string, unknown>;
 
@@ -298,6 +307,11 @@ async function main() {
   for (const old of oldUsers) {
     stats.users.read++;
     const doc = mapUser(old);
+    if (doc.email && BLOCKED_EMAILS.has(doc.email)) {
+      stats.users.skipped++;
+      console.warn("  skip user (blocked email):", doc.email);
+      continue;
+    }
     if (!doc.email && !doc.phone) {
       stats.users.skipped++;
       console.warn("  skip user (no email or phone):", String(old._id));
