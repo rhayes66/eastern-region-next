@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { connection } from "next/server";
 import { getSessionUser } from "@/lib/session";
 import { dbConnect } from "@/lib/db";
 import { User } from "@/models/User";
@@ -37,6 +38,7 @@ const eur = (n: number) =>
   new Intl.NumberFormat("en-FI", { style: "currency", currency: "EUR" }).format(n);
 
 async function ProfileContent() {
+  await connection(); // getSessionUser() hits the DB → request time only
   const user = await getSessionUser();
   if (!user?.id) {
     return <p className="text-sm text-zinc-500">Not signed in.</p>;

@@ -1,11 +1,15 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import { connection } from "next/server";
 import { getSessionUser } from "@/lib/session";
 import { signOut } from "@/auth";
 import NavShell from "@/components/NavShell";
 
 /** Auth-dependent nav (reads the session cookie → dynamic, streamed). */
 async function HeaderActions() {
+  // getSessionUser() reads the live role from the DB (uses crypto/mongoose), so
+  // opt out of prerendering before it runs. Stays streamed inside <Suspense>.
+  await connection();
   const user = await getSessionUser();
 
   if (!user) {
