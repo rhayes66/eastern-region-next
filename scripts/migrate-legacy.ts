@@ -25,6 +25,13 @@
  *   LEGACY_DUMP_DIR="~/legacy-dump/geraf" MONGODB_URI="…" \
  *     npx tsx scripts/migrate-legacy.ts --commit
  *
+ *   ENV VARS (keep the values out of git; .env is ignored):
+ *     MIGRATE_BLOCKED_EMAILS  comma-separated legacy emails to skip (test,
+ *                             hostile or duplicate accounts). REQUIRED for
+ *                             --commit; set to "none" to skip nobody.
+ *     MIGRATE_ADMIN_EMAILS    comma-separated emails allowed to keep Admin.
+ *                             Every other legacy Admin becomes a Member.
+ *
  *   LEGACY_DUMP_DIR must point at the directory that CONTAINS the collection
  *   .bson files (e.g. the `geraf/` folder with users.bson, dues.bson). A
  *   leading `~` is expanded to the home directory.
@@ -72,8 +79,10 @@ const OLD_COLLECTIONS = {
   events: "events", // absent in GERAF — handled gracefully if missing
 };
 
-// Accounts found in the legacy DB that are NOT real members (test/junk or
-// suspected hostile signups, incl. two with Admin role). Never migrate these.
+// Legacy accounts that are NOT real members (test/junk, suspected hostile
+// signups, duplicates) are never migrated. The list is personal data, so it is
+// NOT stored in the repo: pass it in MIGRATE_BLOCKED_EMAILS (comma-separated,
+// case-insensitive), e.g. in your untracked .env.
 const BLOCKED_EMAILS = new Set(
   (process.env.MIGRATE_BLOCKED_EMAILS ?? "")
     .split(",")
@@ -293,7 +302,17 @@ async function main() {
   // Source: a mongodump directory of .bson files (read-only, no running Mongo).
   const dumpDir = resolveDumpDir();
 
+  // Fail safe: without the blocklist the junk/hostile accounts would be
+  // imported. A real write must set it (use "none" to deliberately opt out).
+  if (COMMIT && BLOCKED_EMAILS.size === 0 && process.env.MIGRATE_BLOCKED_EMAILS !== "none") {
+    throw new Error(
+      "MIGRATE_BLOCKED_EMAILS is not set. List the legacy emails to skip " +
+        '(comma-separated), or set it to "none" to migrate everyone.'
+    );
+  }
+
   console.log(COMMIT ? "=== COMMIT RUN (writes enabled) ===" : "=== DRY RUN (no writes) ===");
+  console.log(`Blocked emails: ${BLOCKED_EMAILS.size} | admin allowlist: ${ADMIN_ALLOWLIST.size}`);
   console.log(`Source dump: ${dumpDir}`);
 
   // Target: this app's Mongoose connection + validated models.
